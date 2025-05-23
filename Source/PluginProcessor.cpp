@@ -94,8 +94,13 @@ void EQ5bAudioProcessor::changeProgramName (int index, const juce::String& newNa
 //==============================================================================
 void EQ5bAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    juce::dsp::ProcessSpec spec;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = 1;
+    spec.sampleRate = sampleRate;
+
+    leftChain.prepare(spec);
+    rightChain.prepare(spec);
 }
 
 void EQ5bAudioProcessor::releaseResources()
@@ -145,18 +150,11 @@ void EQ5bAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
+    juce::dsp::AudioBlock<float> block(buffer);
 
-        // ..do something to the data...
-    }
+    auto leftBlock = block.getSingleChannelBlock(0);
+    auto rightBlock = block.getSingleChannelBlock(1);
+
 }
 
 //==============================================================================
@@ -185,6 +183,13 @@ void EQ5bAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 }
 
 //==============================================================================
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& processorParameters)
+{
+    ChainSettings settings;
+    settings.cutf=processorParameters.getRawParameterValue("HP freq")->load();
+    settings.slope = processorParameters.getRawParameterValue("HP slope")->load();
+    return settings;
+}
 
 juce::AudioProcessorValueTreeState::ParameterLayout EQ5bAudioProcessor::createParameterLayout()
 {
@@ -192,7 +197,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout EQ5bAudioProcessor::createPa
 
     //High Pass Filter Parameters:
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("HPF freq", 
+    layout.add(std::make_unique<juce::AudioParameterFloat>("HP freq", 
                                                     "HP cut frequency", 
                                                     juce::NormalisableRange<float>(20.f,300.f,1.f,3.f),
                                                     20.f));

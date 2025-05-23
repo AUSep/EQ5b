@@ -10,6 +10,13 @@
 
 #include <JuceHeader.h>
 
+struct ChainSettings{
+  
+  float cutf{0}, slope{0};
+
+};
+
+ChainSettings getChainSettings (juce::AudioProcessorValueTreeState& processorParameters);
 //==============================================================================
 /**
 */
@@ -57,8 +64,11 @@ public:
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     juce::AudioProcessorValueTreeState processorParameters{*this, nullptr, "Parameters", createParameterLayout()};
-
 private:
+    using Filter = juce::dsp::IIR::Filter<float>;
+    using CutFreq = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
+    using MonoChain = juce::dsp::ProcessorChain<CutFreq>;
+    MonoChain leftChain, rightChain;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ5bAudioProcessor)
 };
