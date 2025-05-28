@@ -92,16 +92,6 @@ void EQ5bAudioProcessor::changeProgramName (int index, const juce::String& newNa
 }
 
 //==============================================================================
-void EQ5bAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
-{
-    juce::dsp::ProcessSpec spec;
-    spec.maximumBlockSize = samplesPerBlock;
-    spec.numChannels = 1;
-    spec.sampleRate = sampleRate;
-
-    leftChain.prepare(spec);
-    rightChain.prepare(spec);
-}
 
 void EQ5bAudioProcessor::releaseResources()
 {
@@ -155,6 +145,12 @@ void EQ5bAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     auto leftBlock = block.getSingleChannelBlock(0);
     auto rightBlock = block.getSingleChannelBlock(1);
 
+    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
+    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
+
+    leftChain.process(leftContext);
+    rightChain.process(rightContext);
+
 }
 
 //==============================================================================
@@ -186,7 +182,7 @@ void EQ5bAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& processorParameters)
 {
     ChainSettings settings;
-    settings.cutf=processorParameters.getRawParameterValue("HP freq")->load();
+    settings.cutf = processorParameters.getRawParameterValue("HP freq")->load();
     settings.slope = processorParameters.getRawParameterValue("HP slope")->load();
     return settings;
 }
@@ -213,9 +209,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout EQ5bAudioProcessor::createPa
     //
     return layout;
 }
-
-
-
 
 //==============================================================================
 // This creates new instances of the plugin..
