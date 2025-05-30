@@ -30,6 +30,69 @@ EQ5bAudioProcessor::~EQ5bAudioProcessor()
 }
 
 //==============================================================================
+void EQ5bAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    juce::dsp::ProcessSpec spec;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = 1;
+    spec.sampleRate = sampleRate;
+
+    leftChain.prepare(spec);
+    rightChain.prepare(spec);
+
+    auto chainSettings = getChainSettings(processorParameters);
+
+    auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.cutf,
+                                                                                                    sampleRate,
+                                                                                                    2*(chainSettings.slope)+1);
+    auto& leftHP = leftChain.get<ChainPositions::HiPass>();
+    auto& rightHP = rightChain.get<ChainPositions::HiPass>();
+
+    leftHP.setBypassed<0>(true);
+    leftHP.setBypassed<1>(true);
+    leftHP.setBypassed<2>(true);
+    leftHP.setBypassed<3>(true);
+
+    switch ( chainSettings.slope )
+    {
+    case slope_12:{
+        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<0>(false);
+        break;
+        }
+    
+    case slope_24:{
+        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<0>(false);
+        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<1>(false);
+        break;
+        }
+    
+    case slope_32:{
+        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<0>(false);
+        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<1>(false);
+        *leftHP.get<3>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<3>(false);
+        break;
+        }
+    case slope_48:{
+        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<0>(false);
+        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<1>(false);
+        *leftHP.get<3>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<3>(false);
+        *leftHP.get<4>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<4>(false);
+        break;
+        }
+
+    }
+}
+    
 const juce::String EQ5bAudioProcessor::getName() const
 {
     return JucePlugin_Name;
@@ -151,6 +214,58 @@ void EQ5bAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     leftChain.process(leftContext);
     rightChain.process(rightContext);
 
+    auto chainSettings = getChainSettings(processorParameters);
+
+    auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.cutf,
+                                                                                                    getSampleRate(),
+                                                                                                    2*(chainSettings.slope)+1);
+    auto& leftHP = leftChain.get<ChainPositions::HiPass>();
+    auto& rightHP = rightChain.get<ChainPositions::HiPass>();
+
+    leftHP.setBypassed<0>(true);
+    leftHP.setBypassed<1>(true);
+    leftHP.setBypassed<2>(true);
+    leftHP.setBypassed<3>(true);
+
+    switch ( chainSettings.slope )
+    {
+    case slope_12:{
+        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<0>(false);
+        break;
+        }
+    
+    case slope_24:{
+        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<0>(false);
+        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<1>(false);
+        break;
+        }
+    
+    case slope_32:{
+        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<0>(false);
+        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<1>(false);
+        *leftHP.get<3>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<3>(false);
+        break;
+        }
+    case slope_48:{
+        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<0>(false);
+        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<1>(false);
+        *leftHP.get<3>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<3>(false);
+        *leftHP.get<4>().coefficients = *hpFilterCoefficients[0];
+        leftHP.setBypassed<4>(false);
+        break;
+        }
+
+    }
+
 }
 
 //==============================================================================
@@ -183,7 +298,7 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& processorPara
 {
     ChainSettings settings;
     settings.cutf = processorParameters.getRawParameterValue("HP freq")->load();
-    settings.slope = processorParameters.getRawParameterValue("HP slope")->load();
+    settings.slope = static_cast<Slope>(processorParameters.getRawParameterValue("HP slope")->load());
     return settings;
 }
 

@@ -10,10 +10,17 @@
 
 #include <JuceHeader.h>
 
+enum Slope {
+  slope_12,
+  slope_24,
+  slope_32,
+  slope_48
+};
+
 struct ChainSettings{
   
-  float cutf{0}, slope{0};
-
+  float cutf{0}; 
+  Slope slope{Slope::slope_12};
 };
 
 ChainSettings getChainSettings (juce::AudioProcessorValueTreeState& processorParameters);
@@ -69,6 +76,10 @@ private:
     using CutFreq = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
     using MonoChain = juce::dsp::ProcessorChain<CutFreq>;
     MonoChain leftChain, rightChain;
+
+    enum ChainPositions{
+    HiPass
+    };
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ5bAudioProcessor)
 };
