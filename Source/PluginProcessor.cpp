@@ -48,49 +48,8 @@ void EQ5bAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     auto& leftHP = leftChain.get<ChainPositions::HiPass>();
     auto& rightHP = rightChain.get<ChainPositions::HiPass>();
 
-    leftHP.setBypassed<0>(true);
-    leftHP.setBypassed<1>(true);
-    leftHP.setBypassed<2>(true);
-    leftHP.setBypassed<3>(true);
-
-    switch ( chainSettings.slope )
-    {
-    case slope_12:{
-        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<0>(false);
-        break;
-        }
-    
-    case slope_24:{
-        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<0>(false);
-        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<1>(false);
-        break;
-        }
-    
-    case slope_32:{
-        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<0>(false);
-        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<1>(false);
-        *leftHP.get<3>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<3>(false);
-        break;
-        }
-    case slope_48:{
-        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<0>(false);
-        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<1>(false);
-        *leftHP.get<3>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<3>(false);
-        *leftHP.get<4>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<4>(false);
-        break;
-        }
-
-    }
+    updateHpFilter(leftHP, hpFilterCoefficients, chainSettings.slope);
+    updateHpFilter(rightHP, hpFilterCoefficients, chainSettings.slope);
 }
     
 const juce::String EQ5bAudioProcessor::getName() const
@@ -222,52 +181,10 @@ void EQ5bAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     auto& leftHP = leftChain.get<ChainPositions::HiPass>();
     auto& rightHP = rightChain.get<ChainPositions::HiPass>();
 
-    leftHP.setBypassed<0>(true);
-    leftHP.setBypassed<1>(true);
-    leftHP.setBypassed<2>(true);
-    leftHP.setBypassed<3>(true);
-
-    switch ( chainSettings.slope )
-    {
-    case slope_12:{
-        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<0>(false);
-        break;
-        }
-    
-    case slope_24:{
-        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<0>(false);
-        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<1>(false);
-        break;
-        }
-    
-    case slope_32:{
-        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<0>(false);
-        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<1>(false);
-        *leftHP.get<3>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<3>(false);
-        break;
-        }
-    case slope_48:{
-        *leftHP.get<0>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<0>(false);
-        *leftHP.get<1>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<1>(false);
-        *leftHP.get<3>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<3>(false);
-        *leftHP.get<4>().coefficients = *hpFilterCoefficients[0];
-        leftHP.setBypassed<4>(false);
-        break;
-        }
-
-    }
+   updateHpFilter(leftHP, hpFilterCoefficients, chainSettings.slope);
+   updateHpFilter(rightHP, hpFilterCoefficients, chainSettings.slope);
 
 }
-
 //==============================================================================
 bool EQ5bAudioProcessor::hasEditor() const
 {
@@ -300,6 +217,11 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& processorPara
     settings.cutf = processorParameters.getRawParameterValue("HP freq")->load();
     settings.slope = static_cast<Slope>(processorParameters.getRawParameterValue("HP slope")->load());
     return settings;
+}
+
+void EQ5bAudioProcessor::updateCoefficients(Coefficients &oldCoeff, Coefficients &newCoeff)
+{
+    *oldCoeff = *newCoeff;
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout EQ5bAudioProcessor::createParameterLayout()

@@ -80,6 +80,59 @@ private:
     enum ChainPositions{
     HiPass
     };
+
+    using Coefficients = Filter::CoefficientsPtr;
+    static void updateCoefficients (Coefficients& oldCoeff, Coefficients& newCoeff);
+
+    template<typename ChainType, typename CoefficientType>
+    void updateHpFilter(ChainType& channelHpf,
+                        const CoefficientType& cutCoefficients,
+                        const Slope& hpSlope)
+    {
+      channelHpf.template setBypassed<0>(true);
+      channelHpf.template setBypassed<1>(true);
+      channelHpf.template setBypassed<2>(true);
+      channelHpf.template setBypassed<3>(true);
+
+      switch ( hpSlope )
+      {
+      case slope_12:{
+          *channelHpf.template get<0>().coefficients = *cutCoefficients[0]; 
+          channelHpf.template setBypassed<0>(false);
+          break;
+          }
+      
+      case slope_24:{
+          *channelHpf.template get<0>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<0>(false);
+          *channelHpf.template get<1>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<1>(false);
+          break;
+          }
+      
+      case slope_32:{
+          *channelHpf.template get<0>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<0>(false);
+          *channelHpf.template get<1>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<1>(false);
+          *channelHpf.template get<2>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<2>(false);
+          break;
+          }
+      case slope_48:{
+          *channelHpf.template get<0>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<0>(false);
+          *channelHpf.template get<1>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<1>(false);
+          *channelHpf.template get<2>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<2>(false);
+          *channelHpf.template get<3>().coefficients = *cutCoefficients[0];
+          channelHpf.template setBypassed<3>(false);
+          break;
+          }
+
+      }
+    }
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ5bAudioProcessor)
 };

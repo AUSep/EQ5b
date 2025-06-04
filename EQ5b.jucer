@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="Db0AM6" name="EQ5b" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginFormats="buildStandalone"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginFormats="buildLV2,buildStandalone"
               lv2Uri="https://github.com/AUSep/EQ5b">
   <MAINGROUP id="nfdMaU" name="EQ5b">
     <GROUP id="{ADA778DE-DEDB-2AF0-3032-1B5493627DC1}" name="Source">
