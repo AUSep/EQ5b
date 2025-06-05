@@ -19,8 +19,8 @@ enum Slope {
 
 struct ChainSettings{
   
-  float cutf{0}; 
-  Slope slope{Slope::slope_12};
+  float hpCutf{0}, lpCutf{0}; 
+  Slope hpSlope{Slope::slope_12}, lpSlope{Slope::slope_12};
 };
 
 ChainSettings getChainSettings (juce::AudioProcessorValueTreeState& processorParameters);
@@ -78,14 +78,15 @@ private:
     MonoChain leftChain, rightChain;
 
     enum ChainPositions{
-    HiPass
+    HiPass,
+    LoPass
     };
 
     using Coefficients = Filter::CoefficientsPtr;
     static void updateCoefficients (Coefficients& oldCoeff, Coefficients& newCoeff);
 
     template<typename ChainType, typename CoefficientType>
-    void updateHpFilter(ChainType& channelHpf,
+    void updateFilterParameters(ChainType& channelHpf,
                         const CoefficientType& cutCoefficients,
                         const Slope& hpSlope)
     {
