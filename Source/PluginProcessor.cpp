@@ -67,7 +67,7 @@ void EQ5bAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     auto lowPeakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
                                                                                    chainSettings.p1Freq,
                                                                                    chainSettings.p1q,
-                                                                                   juce::Decibels::decibelsToGain(chainSettings.p1q));
+                                                                                   juce::Decibels::decibelsToGain(chainSettings.p1Gain));
 
     *leftChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
     *rightChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
@@ -216,7 +216,7 @@ void EQ5bAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::Mi
     auto lowPeakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
                                                                                    chainSettings.p1Freq,
                                                                                    chainSettings.p1q,
-                                                                                   juce::Decibels::decibelsToGain(chainSettings.p1q));
+                                                                                   juce::Decibels::decibelsToGain(chainSettings.p1Gain));
 
     *leftChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
     *rightChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
