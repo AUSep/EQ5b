@@ -13,14 +13,14 @@
 //==============================================================================
 EQ5bAudioProcessor::EQ5bAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
-                       )
+    : AudioProcessor(BusesProperties()
+#if !JucePlugin_IsMidiEffect
+#if !JucePlugin_IsSynth
+                         .withInput("Input", juce::AudioChannelSet::stereo(), true)
+#endif
+                         .withOutput("Output", juce::AudioChannelSet::stereo(), true)
+#endif
+      )
 #endif
 {
 }
@@ -30,7 +30,7 @@ EQ5bAudioProcessor::~EQ5bAudioProcessor()
 }
 
 //==============================================================================
-void EQ5bAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void EQ5bAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     juce::dsp::ProcessSpec spec;
     spec.maximumBlockSize = samplesPerBlock;
@@ -42,35 +42,37 @@ void EQ5bAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 
     auto chainSettings = getChainSettings(processorParameters);
 
+    // Prepare HP and LP filters
+
     auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.hpCutf,
-                                                                                                    sampleRate,
-                                                                                                    2*(chainSettings.hpSlope)+1);
-    auto& leftHP = leftChain.get<ChainPositions::HiPass>();
-    auto& rightHP = rightChain.get<ChainPositions::HiPass>();
+                                                                                                            sampleRate,
+                                                                                                            2 * (chainSettings.hpSlope) + 1);
+    auto &leftHP = leftChain.get<ChainPositions::HiPass>();
+    auto &rightHP = rightChain.get<ChainPositions::HiPass>();
 
     updateFilterParameters(leftHP, hpFilterCoefficients, chainSettings.hpSlope);
     updateFilterParameters(rightHP, hpFilterCoefficients, chainSettings.hpSlope);
 
     auto lpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.lpCutf,
-                                                                                                    getSampleRate(),
-                                                                                                    2*(chainSettings.lpSlope+1));
-    auto& leftLP = leftChain.get<ChainPositions::LoPass>();
-    auto& rightLP = rightChain.get<ChainPositions::LoPass>();
-    
+                                                                                                           getSampleRate(),
+                                                                                                           2 * (chainSettings.lpSlope + 1));
+    auto &leftLP = leftChain.get<ChainPositions::LoPass>();
+    auto &rightLP = rightChain.get<ChainPositions::LoPass>();
+
     updateFilterParameters(leftLP, lpFilterCoefficients, chainSettings.lpSlope);
     updateFilterParameters(rightLP, lpFilterCoefficients, chainSettings.lpSlope);
 
+    // Prepare peak filters
+
     auto lowPeakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
-                                                                            chainSettings.p1Freq,
-                                                                            chainSettings.p1q,
-                                                                            chainSettings.p1Gain);
-    
+                                                                                   chainSettings.p1Freq,
+                                                                                   chainSettings.p1q,
+                                                                                   juce::Decibels::decibelsToGain(chainSettings.p1q));
+
     *leftChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
     *rightChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
-
-    
 }
-    
+
 const juce::String EQ5bAudioProcessor::getName() const
 {
     return JucePlugin_Name;
@@ -78,29 +80,29 @@ const juce::String EQ5bAudioProcessor::getName() const
 
 bool EQ5bAudioProcessor::acceptsMidi() const
 {
-   #if JucePlugin_WantsMidiInput
+#if JucePlugin_WantsMidiInput
     return true;
-   #else
+#else
     return false;
-   #endif
+#endif
 }
 
 bool EQ5bAudioProcessor::producesMidi() const
 {
-   #if JucePlugin_ProducesMidiOutput
+#if JucePlugin_ProducesMidiOutput
     return true;
-   #else
+#else
     return false;
-   #endif
+#endif
 }
 
 bool EQ5bAudioProcessor::isMidiEffect() const
 {
-   #if JucePlugin_IsMidiEffect
+#if JucePlugin_IsMidiEffect
     return true;
-   #else
+#else
     return false;
-   #endif
+#endif
 }
 
 double EQ5bAudioProcessor::getTailLengthSeconds() const
@@ -110,8 +112,8 @@ double EQ5bAudioProcessor::getTailLengthSeconds() const
 
 int EQ5bAudioProcessor::getNumPrograms()
 {
-    return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
+    return 1; // NB: some hosts don't cope very well if you tell them there are 0 programs,
+              // so this should be at least 1, even if you're not really implementing programs.
 }
 
 int EQ5bAudioProcessor::getCurrentProgram()
@@ -119,16 +121,16 @@ int EQ5bAudioProcessor::getCurrentProgram()
     return 0;
 }
 
-void EQ5bAudioProcessor::setCurrentProgram (int index)
+void EQ5bAudioProcessor::setCurrentProgram(int index)
 {
 }
 
-const juce::String EQ5bAudioProcessor::getProgramName (int index)
+const juce::String EQ5bAudioProcessor::getProgramName(int index)
 {
     return {};
 }
 
-void EQ5bAudioProcessor::changeProgramName (int index, const juce::String& newName)
+void EQ5bAudioProcessor::changeProgramName(int index, const juce::String &newName)
 {
 }
 
@@ -141,35 +143,34 @@ void EQ5bAudioProcessor::releaseResources()
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool EQ5bAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool EQ5bAudioProcessor::isBusesLayoutSupported(const BusesLayout &layouts) const
 {
-  #if JucePlugin_IsMidiEffect
-    juce::ignoreUnused (layouts);
+#if JucePlugin_IsMidiEffect
+    juce::ignoreUnused(layouts);
     return true;
-  #else
+#else
     // This is the place where you check if the layout is supported.
     // In this template code we only support mono or stereo.
     // Some plugin hosts, such as certain GarageBand versions, will only
     // load plugins that support stereo bus layouts.
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono() && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
 
     // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
+#if !JucePlugin_IsSynth
     if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
         return false;
-   #endif
+#endif
 
     return true;
-  #endif
+#endif
 }
 #endif
 
-void EQ5bAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void EQ5bAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::MidiBuffer &midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
+    auto totalNumInputChannels = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
     // In case we have more outputs than inputs, this code clears any output
@@ -179,7 +180,7 @@ void EQ5bAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     // when they first compile a plugin, but obviously you don't need to keep
     // this code if your algorithm always overwrites all the output channels.
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+        buffer.clear(i, 0, buffer.getNumSamples());
 
     juce::dsp::AudioBlock<float> block(buffer);
 
@@ -195,24 +196,30 @@ void EQ5bAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     auto chainSettings = getChainSettings(processorParameters);
 
     auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.hpCutf,
-                                                                                                    getSampleRate(),
-                                                                                                    2*(chainSettings.hpSlope+1));
-    auto& leftHP = leftChain.get<ChainPositions::HiPass>();
-    auto& rightHP = rightChain.get<ChainPositions::HiPass>();
+                                                                                                            getSampleRate(),
+                                                                                                            2 * (chainSettings.hpSlope + 1));
+    auto &leftHP = leftChain.get<ChainPositions::HiPass>();
+    auto &rightHP = rightChain.get<ChainPositions::HiPass>();
 
     updateFilterParameters(leftHP, hpFilterCoefficients, chainSettings.hpSlope);
     updateFilterParameters(rightHP, hpFilterCoefficients, chainSettings.hpSlope);
 
     auto lpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.lpCutf,
-                                                                                                    getSampleRate(),
-                                                                                                    2*(chainSettings.lpSlope+1));
-    auto& leftLP = leftChain.get<ChainPositions::LoPass>();
-    auto& rightLP = rightChain.get<ChainPositions::LoPass>();
-    
+                                                                                                           getSampleRate(),
+                                                                                                           2 * (chainSettings.lpSlope + 1));
+    auto &leftLP = leftChain.get<ChainPositions::LoPass>();
+    auto &rightLP = rightChain.get<ChainPositions::LoPass>();
+
     updateFilterParameters(leftLP, lpFilterCoefficients, chainSettings.lpSlope);
     updateFilterParameters(rightLP, lpFilterCoefficients, chainSettings.lpSlope);
 
+    auto lowPeakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
+                                                                                   chainSettings.p1Freq,
+                                                                                   chainSettings.p1q,
+                                                                                   juce::Decibels::decibelsToGain(chainSettings.p1q));
 
+    *leftChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
+    *rightChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
 }
 //==============================================================================
 bool EQ5bAudioProcessor::hasEditor() const
@@ -220,27 +227,27 @@ bool EQ5bAudioProcessor::hasEditor() const
     return true; // (change this to false if you choose to not supply an editor)
 }
 
-juce::AudioProcessorEditor* EQ5bAudioProcessor::createEditor()
+juce::AudioProcessorEditor *EQ5bAudioProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
-void EQ5bAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void EQ5bAudioProcessor::getStateInformation(juce::MemoryBlock &destData)
 {
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
 }
 
-void EQ5bAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void EQ5bAudioProcessor::setStateInformation(const void *data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
 }
 
 //==============================================================================
-ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& processorParameters)
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState &processorParameters)
 {
     ChainSettings settings;
     settings.hpCutf = processorParameters.getRawParameterValue("HP freq")->load();
@@ -249,7 +256,7 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& processorPara
     settings.lpSlope = static_cast<Slope>(processorParameters.getRawParameterValue("LP slope")->load());
     settings.p1Freq = processorParameters.getRawParameterValue("peak freq 1")->load();
     settings.p1Gain = processorParameters.getRawParameterValue("peak gain 1")->load();
-    settings.p1q =  processorParameters.getRawParameterValue("peak q 1")->load();
+    settings.p1q = processorParameters.getRawParameterValue("peak q 1")->load();
     return settings;
 }
 
@@ -262,51 +269,52 @@ juce::AudioProcessorValueTreeState::ParameterLayout EQ5bAudioProcessor::createPa
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    //HP and LP Filters Parameters:
+    // HP and LP Filters Parameters:
     juce::StringArray strArray;
-    for( int i = 0; i < 4; ++i ){
+    for (int i = 0; i < 4; ++i)
+    {
         juce::String str;
-        str << (12+12*i);
+        str << (12 + 12 * i);
         str << " db/Oct";
         strArray.add(str);
     }
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("HP freq", 
-                                                    "HP cut frequency", 
-                                                    juce::NormalisableRange<float>(20.f,500.f,1.f),
-                                                    20.f));  
+    layout.add(std::make_unique<juce::AudioParameterFloat>("HP freq",
+                                                           "HP cut frequency",
+                                                           juce::NormalisableRange<float>(20.f, 500.f, 1.f),
+                                                           20.f));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>("HP slope", "HP Slope", strArray, 0));
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("LP freq", 
-                                                    "LP cut frequency", 
-                                                    juce::NormalisableRange<float>(1000.f,20000.f,1.f),
-                                                    20000.f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("LP freq",
+                                                           "LP cut frequency",
+                                                           juce::NormalisableRange<float>(1000.f, 20000.f, 1.f),
+                                                           20000.f));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>("LP slope", "LP Slope", strArray, 0));
-    
-    //Peak Filters
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("peak gain 1", 
-                                                    "Low Peak Gain",
-                                                    juce::NormalisableRange<float>(-120.0f,12.0f,3.0f),
-                                                    0.0f));
+    // Peak Filters
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak gain 1",
+                                                           "Low Peak Gain",
+                                                           juce::NormalisableRange<float>(-120.0f, 12.0f, 3.0f),
+                                                           0.0f));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>("peak freq 1",
-                                                    "Low Peak Frequency",
-                                                    juce::NormalisableRange<float>(100.f,800.f,1.f),
-                                                    300.0f));
+                                                           "Low Peak Frequency",
+                                                           juce::NormalisableRange<float>(100.f, 800.f, 1.f),
+                                                           300.0f));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>("peak q 1",
-                                                    "Low Peak Bandwidth",
-                                                    juce::NormalisableRange<float>(0.0f,4.f,0.01f),
-                                                    1.f));
+                                                           "Low Peak Bandwidth",
+                                                           juce::NormalisableRange<float>(0.0f, 4.f, 0.01f),
+                                                           1.f));
     return layout;
 }
 
 //==============================================================================
 // This creates new instances of the plugin..
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter()
 {
     return new EQ5bAudioProcessor();
 }
