@@ -18,7 +18,7 @@ enum Slope {
 };
 
 struct ChainSettings{
-  
+  float p1Gain{0}, p1Freq{0}, p1q{0};
   float hpCutf{0}, lpCutf{0}; 
   Slope hpSlope{Slope::slope_12}, lpSlope{Slope::slope_12};
 };
@@ -74,11 +74,12 @@ public:
 private:
     using Filter = juce::dsp::IIR::Filter<float>;
     using CutFreq = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
-    using MonoChain = juce::dsp::ProcessorChain<CutFreq>;
+    using MonoChain = juce::dsp::ProcessorChain<CutFreq, Filter, CutFreq>;
     MonoChain leftChain, rightChain;
 
     enum ChainPositions{
     HiPass,
+    LoPeak,
     LoPass
     };
 

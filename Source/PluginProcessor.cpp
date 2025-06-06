@@ -59,6 +59,16 @@ void EQ5bAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     
     updateFilterParameters(leftLP, lpFilterCoefficients, chainSettings.lpSlope);
     updateFilterParameters(rightLP, lpFilterCoefficients, chainSettings.lpSlope);
+
+    auto lowPeakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
+                                                                            chainSettings.p1Freq,
+                                                                            chainSettings.p1q,
+                                                                            chainSettings.p1Gain);
+    
+    *leftChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
+    *rightChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
+
+    
 }
     
 const juce::String EQ5bAudioProcessor::getName() const
@@ -201,6 +211,8 @@ void EQ5bAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     
     updateFilterParameters(leftLP, lpFilterCoefficients, chainSettings.lpSlope);
     updateFilterParameters(rightLP, lpFilterCoefficients, chainSettings.lpSlope);
+
+
 }
 //==============================================================================
 bool EQ5bAudioProcessor::hasEditor() const
@@ -235,6 +247,9 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& processorPara
     settings.hpSlope = static_cast<Slope>(processorParameters.getRawParameterValue("HP slope")->load());
     settings.lpCutf = processorParameters.getRawParameterValue("LP freq")->load();
     settings.lpSlope = static_cast<Slope>(processorParameters.getRawParameterValue("LP slope")->load());
+    settings.p1Freq = processorParameters.getRawParameterValue("peak freq 1")->load();
+    settings.p1Gain = processorParameters.getRawParameterValue("peak gain 1")->load();
+    settings.p1q =  processorParameters.getRawParameterValue("peak q 1")->load();
     return settings;
 }
 
@@ -247,7 +262,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout EQ5bAudioProcessor::createPa
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    //High Pass Filter Parameters:
+    //HP and LP Filters Parameters:
     juce::StringArray strArray;
     for( int i = 0; i < 4; ++i ){
         juce::String str;
@@ -258,18 +273,34 @@ juce::AudioProcessorValueTreeState::ParameterLayout EQ5bAudioProcessor::createPa
 
     layout.add(std::make_unique<juce::AudioParameterFloat>("HP freq", 
                                                     "HP cut frequency", 
-                                                    juce::NormalisableRange<float>(20.f,300.f,1.f,3.f),
+                                                    juce::NormalisableRange<float>(20.f,500.f,1.f),
                                                     20.f));  
 
     layout.add(std::make_unique<juce::AudioParameterChoice>("HP slope", "HP Slope", strArray, 0));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>("LP freq", 
                                                     "LP cut frequency", 
-                                                    juce::NormalisableRange<float>(20.f,300.f,1.f,3.f),
-                                                    20.f));
+                                                    juce::NormalisableRange<float>(1000.f,20000.f,1.f),
+                                                    20000.f));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>("LP slope", "LP Slope", strArray, 0));
-    //
+    
+    //Peak Filters
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak gain 1", 
+                                                    "Low Peak Gain",
+                                                    juce::NormalisableRange<float>(-120.0f,12.0f,3.0f),
+                                                    0.0f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak freq 1",
+                                                    "Low Peak Frequency",
+                                                    juce::NormalisableRange<float>(100.f,800.f,1.f),
+                                                    300.0f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak q 1",
+                                                    "Low Peak Bandwidth",
+                                                    juce::NormalisableRange<float>(0.0f,4.f,0.01f),
+                                                    1.f));
     return layout;
 }
 
