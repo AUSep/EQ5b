@@ -44,33 +44,29 @@ void EQ5bAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 
     // Prepare HP and LP filters
 
-    auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.hpCutf,
+    auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.hpFilter.fCut,
                                                                                                             sampleRate,
-                                                                                                            2 * (chainSettings.hpSlope) + 1);
+                                                                                                            2 * (chainSettings.hpFilter.slope + 1));
     auto &leftHP = leftChain.get<ChainPositions::HiPass>();
     auto &rightHP = rightChain.get<ChainPositions::HiPass>();
 
-    updateFilterParameters(leftHP, hpFilterCoefficients, chainSettings.hpSlope);
-    updateFilterParameters(rightHP, hpFilterCoefficients, chainSettings.hpSlope);
+    updateEndFiltersParameters(leftHP, hpFilterCoefficients, chainSettings.hpFilter.slope);
+    updateEndFiltersParameters(rightHP, hpFilterCoefficients, chainSettings.hpFilter.slope);
 
-    auto lpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.lpCutf,
+    auto lpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.lpFilter.fCut,
                                                                                                            getSampleRate(),
-                                                                                                           2 * (chainSettings.lpSlope + 1));
+                                                                                                           2 * (chainSettings.lpFilter.slope + 1));
     auto &leftLP = leftChain.get<ChainPositions::LoPass>();
     auto &rightLP = rightChain.get<ChainPositions::LoPass>();
 
-    updateFilterParameters(leftLP, lpFilterCoefficients, chainSettings.lpSlope);
-    updateFilterParameters(rightLP, lpFilterCoefficients, chainSettings.lpSlope);
+    updateEndFiltersParameters(leftLP, lpFilterCoefficients, chainSettings.lpFilter.slope);
+    updateEndFiltersParameters(rightLP, lpFilterCoefficients, chainSettings.lpFilter.slope);
 
     // Prepare peak filters
 
-    auto lowPeakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
-                                                                                   chainSettings.p1Freq,
-                                                                                   chainSettings.p1q,
-                                                                                   juce::Decibels::decibelsToGain(chainSettings.p1Gain));
-
-    *leftChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
-    *rightChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
+    updatePeakFilters(chainSettings.lowPeak, ChainPositions::LoPeak);
+    updatePeakFilters(chainSettings.midPeak, ChainPositions::MidPeak);
+    updatePeakFilters(chainSettings.highPeak, ChainPositions::HiPeak);
 }
 
 const juce::String EQ5bAudioProcessor::getName() const
@@ -195,31 +191,30 @@ void EQ5bAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::Mi
 
     auto chainSettings = getChainSettings(processorParameters);
 
-    auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.hpCutf,
+    auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.hpFilter.fCut,
                                                                                                             getSampleRate(),
-                                                                                                            2 * (chainSettings.hpSlope + 1));
+                                                                                                            2 * (chainSettings.hpFilter.slope + 1));
     auto &leftHP = leftChain.get<ChainPositions::HiPass>();
     auto &rightHP = rightChain.get<ChainPositions::HiPass>();
 
-    updateFilterParameters(leftHP, hpFilterCoefficients, chainSettings.hpSlope);
-    updateFilterParameters(rightHP, hpFilterCoefficients, chainSettings.hpSlope);
+    updateEndFiltersParameters(leftHP, hpFilterCoefficients, chainSettings.hpFilter.slope);
+    updateEndFiltersParameters(rightHP, hpFilterCoefficients, chainSettings.hpFilter.slope);
 
-    auto lpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.lpCutf,
+    auto lpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.lpFilter.fCut,
                                                                                                            getSampleRate(),
-                                                                                                           2 * (chainSettings.lpSlope + 1));
+                                                                                                           2 * (chainSettings.lpFilter.slope + 1));
     auto &leftLP = leftChain.get<ChainPositions::LoPass>();
     auto &rightLP = rightChain.get<ChainPositions::LoPass>();
 
-    updateFilterParameters(leftLP, lpFilterCoefficients, chainSettings.lpSlope);
-    updateFilterParameters(rightLP, lpFilterCoefficients, chainSettings.lpSlope);
+    updateEndFiltersParameters(leftLP, lpFilterCoefficients, chainSettings.lpFilter.slope);
+    updateEndFiltersParameters(rightLP, lpFilterCoefficients, chainSettings.lpFilter.slope);
 
-    auto lowPeakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
-                                                                                   chainSettings.p1Freq,
-                                                                                   chainSettings.p1q,
-                                                                                   juce::Decibels::decibelsToGain(chainSettings.p1Gain));
+    //Peak filters
 
-    *leftChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
-    *rightChain.get<ChainPositions::LoPeak>().coefficients = *lowPeakCoefficients;
+    updatePeakFilters(chainSettings.lowPeak, ChainPositions::LoPeak);
+    updatePeakFilters(chainSettings.midPeak, ChainPositions::MidPeak);
+    updatePeakFilters(chainSettings.highPeak, ChainPositions::HiPeak);
+
 }
 //==============================================================================
 bool EQ5bAudioProcessor::hasEditor() const
@@ -250,13 +245,24 @@ void EQ5bAudioProcessor::setStateInformation(const void *data, int sizeInBytes)
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState &processorParameters)
 {
     ChainSettings settings;
-    settings.hpCutf = processorParameters.getRawParameterValue("HP freq")->load();
-    settings.hpSlope = static_cast<Slope>(processorParameters.getRawParameterValue("HP slope")->load());
-    settings.lpCutf = processorParameters.getRawParameterValue("LP freq")->load();
-    settings.lpSlope = static_cast<Slope>(processorParameters.getRawParameterValue("LP slope")->load());
-    settings.p1Freq = processorParameters.getRawParameterValue("peak freq 1")->load();
-    settings.p1Gain = processorParameters.getRawParameterValue("peak gain 1")->load();
-    settings.p1q = processorParameters.getRawParameterValue("peak q 1")->load();
+    settings.hpFilter.fCut = processorParameters.getRawParameterValue("HP freq")->load();
+    settings.hpFilter.slope = static_cast<Slope>(processorParameters.getRawParameterValue("HP slope")->load());
+
+    settings.lpFilter.fCut = processorParameters.getRawParameterValue("LP freq")->load();
+    settings.lpFilter.slope = static_cast<Slope>(processorParameters.getRawParameterValue("LP slope")->load());
+
+    settings.lowPeak.freq = processorParameters.getRawParameterValue("peak freq 1")->load();
+    settings.lowPeak.gain = processorParameters.getRawParameterValue("peak gain 1")->load();
+    settings.lowPeak.q = processorParameters.getRawParameterValue("peak q 1")->load();
+
+    settings.midPeak.freq = processorParameters.getRawParameterValue("peak freq 2")->load();
+    settings.midPeak.gain = processorParameters.getRawParameterValue("peak gain 2")->load();
+    settings.midPeak.q = processorParameters.getRawParameterValue("peak q 2")->load();
+
+    settings.highPeak.freq = processorParameters.getRawParameterValue("peak freq 3")->load();
+    settings.highPeak.gain = processorParameters.getRawParameterValue("peak gain 3")->load();
+    settings.highPeak.q = processorParameters.getRawParameterValue("peak q 3")->load();
+
     return settings;
 }
 
@@ -297,18 +303,49 @@ juce::AudioProcessorValueTreeState::ParameterLayout EQ5bAudioProcessor::createPa
 
     layout.add(std::make_unique<juce::AudioParameterFloat>("peak gain 1",
                                                            "Low Peak Gain",
-                                                           juce::NormalisableRange<float>(-120.0f, 12.0f, 3.0f),
+                                                           juce::NormalisableRange<float>(-120.0f, 12.0f, 1.f, 3.f),
                                                            0.0f));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>("peak freq 1",
                                                            "Low Peak Frequency",
-                                                           juce::NormalisableRange<float>(100.f, 800.f, 1.f),
+                                                           juce::NormalisableRange<float>(100.f, 700.f, 1.f),
                                                            300.0f));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>("peak q 1",
                                                            "Low Peak Bandwidth",
-                                                           juce::NormalisableRange<float>(0.0f, 4.f, 0.01f),
+                                                           juce::NormalisableRange<float>(0.1f, 4.f, 0.01f),
                                                            1.f));
+    
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak gain 2",
+                                                            "Mid Peak gain",
+                                                            juce::NormalisableRange<float>(-120.f, 12.f, 1.f, 3.f),
+                                                            0.0f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak freq 2",
+                                                            "Mid Peak freq",
+                                                            juce::NormalisableRange(600.f, 3200.f, 1.f),
+                                                            500.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak q 2",
+                                                            "Mid Peak Bandwidth",
+                                                            juce::NormalisableRange(0.1f, 4.f, 0.01f),
+                                                            1.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak gain 3",
+                                                            "High Peak gain",
+                                                            juce::NormalisableRange<float>(-120.f, 12.f, 1.f, 3.f),
+                                                            0.0f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak freq 3",
+                                                            "High Peak freq",
+                                                            juce::NormalisableRange(2500.f, 15000.f, 1.f),
+                                                            500.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("peak q 3",
+                                                            "High Peak Bandwidth",
+                                                            juce::NormalisableRange(0.1f, 4.f, 0.01f),
+                                                            1.f));
+
     return layout;
 }
 

@@ -18,9 +18,28 @@ enum Slope {
 };
 
 struct ChainSettings{
-  float p1Gain{0}, p1Freq{0}, p1q{0};
-  float hpCutf{0}, lpCutf{0}; 
-  Slope hpSlope{Slope::slope_12}, lpSlope{Slope::slope_12};
+  struct HPfilter{
+    float fCut{0};
+    Slope slope{Slope::slope_12};
+  };
+  HPfilter hpFilter;
+  struct LPfilter{
+    float fCut{0};
+    Slope slope{Slope::slope_12};
+  };
+  LPfilter lpFilter;
+  struct LowPeak{
+    float gain{0}, freq{0}, q{0};
+  };
+  LowPeak lowPeak;
+  struct MidPeak{
+    float gain{0}, freq{0}, q{0};
+  };
+  MidPeak midPeak;
+  struct HighPeak{
+    float gain{0}, freq{0}, q{0};
+  };
+  HighPeak highPeak;
 };
 
 ChainSettings getChainSettings (juce::AudioProcessorValueTreeState& processorParameters);
@@ -74,20 +93,53 @@ public:
 private:
     using Filter = juce::dsp::IIR::Filter<float>;
     using CutFreq = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
-    using MonoChain = juce::dsp::ProcessorChain<CutFreq, Filter, CutFreq>;
+    using MonoChain = juce::dsp::ProcessorChain<CutFreq, Filter, Filter, Filter, CutFreq>;
     MonoChain leftChain, rightChain;
 
     enum ChainPositions{
     HiPass,
     LoPeak,
+    MidPeak,
+    HiPeak,
     LoPass
+    };
+    
+    template<typename PeakFilterSettings>
+    void updatePeakFilters(const PeakFilterSettings& settings,
+                          ChainPositions whichPeak)
+    {
+      auto peakFilterCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
+                                                                                        settings.freq,
+                                                                                        settings.q,
+                                                                                        juce::Decibels::decibelsToGain(settings.gain));
+      
+      switch (whichPeak)
+      {
+      case ChainPositions::LoPeak:
+        {
+          updateCoefficients(leftChain.get<ChainPositions::LoPeak>().coefficients, peakFilterCoefficients);
+          updateCoefficients(rightChain.get<ChainPositions::LoPeak>().coefficients, peakFilterCoefficients);
+        }
+        break;
+      case ChainPositions::MidPeak:
+        {
+          updateCoefficients(leftChain.get<ChainPositions::MidPeak>().coefficients, peakFilterCoefficients);
+          updateCoefficients(rightChain.get<ChainPositions::MidPeak>().coefficients, peakFilterCoefficients);
+        }
+      case ChainPositions::HiPeak:
+        {
+          updateCoefficients(leftChain.get<ChainPositions::HiPeak>().coefficients, peakFilterCoefficients);
+          updateCoefficients(rightChain.get<ChainPositions::HiPeak>().coefficients, peakFilterCoefficients);
+        }
+        break;
+      }
     };
 
     using Coefficients = Filter::CoefficientsPtr;
     static void updateCoefficients (Coefficients& oldCoeff, Coefficients& newCoeff);
 
     template<typename ChainType, typename CoefficientType>
-    void updateFilterParameters(ChainType& channelHpf,
+    void updateEndFiltersParameters(ChainType& channelHpf,
                         const CoefficientType& cutCoefficients,
                         const Slope& hpSlope)
     {
