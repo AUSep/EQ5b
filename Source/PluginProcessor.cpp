@@ -44,29 +44,14 @@ void EQ5bAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 
     // Prepare HP and LP filters
 
-    auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.hpFilter.fCut,
-                                                                                                            sampleRate,
-                                                                                                            2 * (chainSettings.hpFilter.slope + 1));
-    auto &leftHP = leftChain.get<ChainPositions::HiPass>();
-    auto &rightHP = rightChain.get<ChainPositions::HiPass>();
-
-    updateEndFiltersParameters(leftHP, hpFilterCoefficients, chainSettings.hpFilter.slope);
-    updateEndFiltersParameters(rightHP, hpFilterCoefficients, chainSettings.hpFilter.slope);
-
-    auto lpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.lpFilter.fCut,
-                                                                                                           getSampleRate(),
-                                                                                                           2 * (chainSettings.lpFilter.slope + 1));
-    auto &leftLP = leftChain.get<ChainPositions::LoPass>();
-    auto &rightLP = rightChain.get<ChainPositions::LoPass>();
-
-    updateEndFiltersParameters(leftLP, lpFilterCoefficients, chainSettings.lpFilter.slope);
-    updateEndFiltersParameters(rightLP, lpFilterCoefficients, chainSettings.lpFilter.slope);
+    setFilter(chainSettings.hpFilter, ChainPositions::HiPass);
+    setFilter(chainSettings.lpFilter, ChainPositions::LoPass);
 
     // Prepare peak filters
 
-    updatePeakFilters(chainSettings.lowPeak, ChainPositions::LoPeak);
-    updatePeakFilters(chainSettings.midPeak, ChainPositions::MidPeak);
-    updatePeakFilters(chainSettings.highPeak, ChainPositions::HiPeak);
+    setFilter(chainSettings.lowPeak, ChainPositions::LoPeak);
+    setFilter(chainSettings.midPeak, ChainPositions::MidPeak);
+    setFilter(chainSettings.highPeak, ChainPositions::HiPeak);
 }
 
 const juce::String EQ5bAudioProcessor::getName() const
@@ -191,30 +176,16 @@ void EQ5bAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::Mi
 
     auto chainSettings = getChainSettings(processorParameters);
 
-    auto hpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.hpFilter.fCut,
-                                                                                                            getSampleRate(),
-                                                                                                            2 * (chainSettings.hpFilter.slope + 1));
-    auto &leftHP = leftChain.get<ChainPositions::HiPass>();
-    auto &rightHP = rightChain.get<ChainPositions::HiPass>();
+    //End Filters
 
-    updateEndFiltersParameters(leftHP, hpFilterCoefficients, chainSettings.hpFilter.slope);
-    updateEndFiltersParameters(rightHP, hpFilterCoefficients, chainSettings.hpFilter.slope);
-
-    auto lpFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.lpFilter.fCut,
-                                                                                                           getSampleRate(),
-                                                                                                           2 * (chainSettings.lpFilter.slope + 1));
-    auto &leftLP = leftChain.get<ChainPositions::LoPass>();
-    auto &rightLP = rightChain.get<ChainPositions::LoPass>();
-
-    updateEndFiltersParameters(leftLP, lpFilterCoefficients, chainSettings.lpFilter.slope);
-    updateEndFiltersParameters(rightLP, lpFilterCoefficients, chainSettings.lpFilter.slope);
+    setFilter(chainSettings.hpFilter, ChainPositions::HiPass);
+    setFilter(chainSettings.lpFilter, ChainPositions::LoPass);
 
     //Peak filters
 
-    updatePeakFilters(chainSettings.lowPeak, ChainPositions::LoPeak);
-    updatePeakFilters(chainSettings.midPeak, ChainPositions::MidPeak);
-    updatePeakFilters(chainSettings.highPeak, ChainPositions::HiPeak);
-
+    setFilter(chainSettings.lowPeak, ChainPositions::LoPeak);
+    setFilter(chainSettings.midPeak, ChainPositions::MidPeak);
+    setFilter(chainSettings.highPeak, ChainPositions::HiPeak);
 }
 //==============================================================================
 bool EQ5bAudioProcessor::hasEditor() const
@@ -230,15 +201,17 @@ juce::AudioProcessorEditor *EQ5bAudioProcessor::createEditor()
 //==============================================================================
 void EQ5bAudioProcessor::getStateInformation(juce::MemoryBlock &destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    juce::MemoryOutputStream memOutStream(destData,true);
+    processorParameters.state.writeToStream(memOutStream);
 }
 
 void EQ5bAudioProcessor::setStateInformation(const void *data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    auto tree = juce::ValueTree::readFromData(data, sizeInBytes);
+    if (tree.isValid()){
+        processorParameters.replaceState(tree);
+        
+    }
 }
 
 //==============================================================================

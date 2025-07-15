@@ -103,16 +103,55 @@ private:
     HiPeak,
     LoPass
     };
-    
+
+    template<typename FilterSettings>
+    void setFilter(const FilterSettings& settings,
+                          ChainPositions whichFilter)
+    {
+      if (whichFilter == ChainPositions::HiPass || whichFilter == ChainPositions::LoPass)
+      {
+        setEndfilter(settings, whichFilter);
+      }
+      else
+      {
+        setPeakFilter(settings, whichFilter);
+      }
+    }
+
+    template<typename EndFilterSettings>
+    void setEndfilter(const EndFilterSettings& settings,
+                          ChainPositions whichFilter)
+    {
+      auto endFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(settings.fCut,
+                                                                                                            getSampleRate(),
+                                                                                                            2 * (settings.slope + 1));
+      
+      switch (whichFilter)
+      {
+        case ChainPositions::HiPass:
+        {
+          updateEndFiltersParameters(leftChain.get<ChainPositions::HiPass>(), endFilterCoefficients, settings.slope);
+          updateEndFiltersParameters(rightChain.get<ChainPositions::HiPass>(), endFilterCoefficients, settings.slope);
+        }
+        break;
+        case ChainPositions::LoPass:
+        {
+          updateEndFiltersParameters(leftChain.get<ChainPositions::LoPass>(), endFilterCoefficients, settings.slope);
+          updateEndFiltersParameters(rightChain.get<ChainPositions::LoPass>(), endFilterCoefficients, settings.slope);
+        }
+        break;
+      }
+    }
+
     template<typename PeakFilterSettings>
-    void updatePeakFilters(const PeakFilterSettings& settings,
+    void setPeakFilter(const PeakFilterSettings& settings,
                           ChainPositions whichPeak)
     {
       auto peakFilterCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
                                                                                         settings.freq,
                                                                                         settings.q,
                                                                                         juce::Decibels::decibelsToGain(settings.gain));
-      
+
       switch (whichPeak)
       {
       case ChainPositions::LoPeak:
@@ -135,53 +174,44 @@ private:
       }
     };
 
+    template<int Index, typename ChainType, typename CoeffincientType>
+    void update(ChainType& chain, const CoeffincientType& coefficients)
+    {
+      updateCoefficients(chain.template get<Index>().coefficients, coefficients[Index]);
+      chain.template setBypassed<Index>(false)  
+    }
+
     using Coefficients = Filter::CoefficientsPtr;
     static void updateCoefficients (Coefficients& oldCoeff, Coefficients& newCoeff);
 
     template<typename ChainType, typename CoefficientType>
-    void updateEndFiltersParameters(ChainType& channelHpf,
+    void updateEndFiltersParameters(ChainType& chain,
                         const CoefficientType& cutCoefficients,
-                        const Slope& hpSlope)
+                        const Slope& Slope)
     {
-      channelHpf.template setBypassed<0>(true);
-      channelHpf.template setBypassed<1>(true);
-      channelHpf.template setBypassed<2>(true);
-      channelHpf.template setBypassed<3>(true);
+      chain.template setBypassed<0>(true);
+      chain.template setBypassed<1>(true);
+      chain.template setBypassed<2>(true);
+      chain.template setBypassed<3>(true);
 
-      switch ( hpSlope )
+      switch ( Slope )
       {
       case slope_12:{
-          *channelHpf.template get<0>().coefficients = *cutCoefficients[0]; 
-          channelHpf.template setBypassed<0>(false);
+          update<0>(chain, cutCoefficients);
           break;
           }
       
       case slope_24:{
-          *channelHpf.template get<0>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<0>(false);
-          *channelHpf.template get<1>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<1>(false);
+          update<1>(chain, cutCoefficients);
           break;
           }
       
       case slope_32:{
-          *channelHpf.template get<0>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<0>(false);
-          *channelHpf.template get<1>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<1>(false);
-          *channelHpf.template get<2>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<2>(false);
+          update<2>(chain, cutCoefficients);
           break;
           }
       case slope_48:{
-          *channelHpf.template get<0>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<0>(false);
-          *channelHpf.template get<1>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<1>(false);
-          *channelHpf.template get<2>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<2>(false);
-          *channelHpf.template get<3>().coefficients = *cutCoefficients[0];
-          channelHpf.template setBypassed<3>(false);
+          update<3>(chain, cutCoefficients);
           break;
           }
 
