@@ -187,7 +187,7 @@ bool EQ5bAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* EQ5bAudioProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor (*this);
+    return new EQ5bAudioProcessorEditor (*this);
 }
 
 //==============================================================================
@@ -196,12 +196,27 @@ void EQ5bAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+    juce::MemoryOutputStream mos(destData, true);
+    processorParameters.state.writeToStream(mos);
 }
 
 void EQ5bAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+    auto tree = juce::ValueTree::readFromData(data, sizeInBytes);
+    if ( tree.isValid() )
+    {
+        processorParameters.replaceState(tree);
+        
+        auto chainSettings = getChainSettings(processorParameters);
+
+        updateCutFilters(ChainPositions::HiPass, chainSettings.hpFilter);
+        updatePeakFilters(ChainPositions::LoPeak, chainSettings.loPeak);
+        updatePeakFilters(ChainPositions::MidPeak, chainSettings.midPeak);
+        updatePeakFilters(ChainPositions::HiPeak, chainSettings.hiPeak);
+        updateCutFilters(ChainPositions::LoPass, chainSettings.lpFilter);
+    }
 }
 
 //==============================================================================
@@ -266,28 +281,28 @@ void EQ5bAudioProcessor::updatePeakFilters(int position, const ChainSettings::Pe
     }
 }
 
-void EQ5bAudioProcessor::updateCutFilters(int position, ChainSettings::CutFilter filter)
+void EQ5bAudioProcessor::updateCutFilters(int position, const ChainSettings::CutFilter& filter)
 {
     switch (position)
     {
-    case ChainPositions::LoPass:
-    {
-    auto loFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(filter.cutf,
-                                                                                                getSampleRate(),
-                                                                                                2*(filter.slope+1));
-    updateCutFiltersSlope(rightChain.get<ChainPositions::LoPass>(), loFilterCoefficients, filter.slope);
-    updateCutFiltersSlope(leftChain.get<ChainPositions::LoPass>(), loFilterCoefficients, filter.slope);
-    break;
-    }
-    case ChainPositions::HiPass:
-    {
-    auto hiFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(filter.cutf,
-                                                                                                getSampleRate(),
-                                                                                                2*(filter.slope+1));
-    updateCutFiltersSlope(rightChain.get<ChainPositions::HiPass>(), hiFilterCoefficients, filter.slope);
-    updateCutFiltersSlope(leftChain.get<ChainPositions::HiPass>(), hiFilterCoefficients, filter.slope);
-    break;
-    }
+        case ChainPositions::LoPass:
+        {
+        auto loFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(filter.cutf,
+                                                                                                    getSampleRate(),
+                                                                                                    2*(filter.slope+1));
+        updateCutFiltersSlope(rightChain.get<ChainPositions::LoPass>(), loFilterCoefficients, filter.slope);
+        updateCutFiltersSlope(leftChain.get<ChainPositions::LoPass>(), loFilterCoefficients, filter.slope);
+        break;
+        }
+        case ChainPositions::HiPass:
+        {
+        auto hiFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(filter.cutf,
+                                                                                                    getSampleRate(),
+                                                                                                    2*(filter.slope+1));
+        updateCutFiltersSlope(rightChain.get<ChainPositions::HiPass>(), hiFilterCoefficients, filter.slope);
+        updateCutFiltersSlope(leftChain.get<ChainPositions::HiPass>(), hiFilterCoefficients, filter.slope);
+        break;
+        }
     }    
 }
 

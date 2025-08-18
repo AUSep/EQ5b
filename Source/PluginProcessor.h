@@ -128,13 +128,12 @@ private:
       case slope_12:
         {
           update<0>(chain, cutCoefficients);
-          break;
         }
       }
     }
 
     void updatePeakFilters(int position, const ChainSettings::PeakFilter& filter);
-    void updateCutFilters(int position, const ChainSettings::CutFilter filter);
+    void updateCutFilters(int position, const ChainSettings::CutFilter& filter);
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ5bAudioProcessor)
 };
