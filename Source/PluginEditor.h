@@ -37,17 +37,35 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     EQ5bAudioProcessor& audioProcessor;
-    rotaryKnob hpFreqSlider, 
+    rotaryKnob hpFreqSlider,
+    hpSlopeSlider,
     p1GainSlider,
-    p1FreqSLider,
+    p1FreqSlider,
     p1QSlider,
     p2GainSlider,
-    p2FreqSLider,
+    p2FreqSlider,
     p2QSlider,
     p3GainSlider,
-    p3FreqSLider,
+    p3FreqSlider,
     p3QSlider,
-    lpFreqSlider;
+    lpFreqSlider,
+    lpSlopeSlider;
+
+    using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+
+    Attachment hpFreqSliderAttachment,
+    hpSlopeSliderAttachment,
+    p1GainSliderAttachment,
+    p1FreqSliderAttachment,
+    p1QSliderAttachment,
+    p2GainSliderAttachment,
+    p2FreqSliderAttachment,
+    p2QSliderAttachment,
+    p3GainSliderAttachment,
+    p3FreqSliderAttachment,
+    p3QSliderAttachment,
+    lpFreqSliderAttachment,
+    lpSlopeSliderAttachment;
 
     std::vector<juce::Component*> getComps();
 
