@@ -42,12 +42,80 @@ EQ5bAudioProcessorEditor::~EQ5bAudioProcessorEditor()
 //==============================================================================
 void EQ5bAudioProcessorEditor::paint (juce::Graphics& g)
 {
+    using namespace juce;
     // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+    g.fillAll (Colours::black);
 
-    g.setColour (juce::Colours::white);
-    g.setFont (juce::FontOptions (15.0f));
-    g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
+    auto bounds = getLocalBounds();
+    auto responseArea = bounds.removeFromTop(bounds.getHeight()*0.33);
+    auto w = responseArea.getWidth();
+
+    auto& hpFilter = monoChain.get<ChainPositions::HiPass>();
+    auto& peak1 = monoChain.get<ChainPositions::LoPeak>();
+    auto& peak2 = monoChain.get<ChainPositions::MidPeak>();
+    auto& peak3 = monoChain.get<ChainPositions::HiPeak>();
+    auto& lpFilter = monoChain.get<ChainPositions::LoPass>();
+
+    auto sampleRate = audioProcessor.getSampleRate();
+
+    std::vector<double> mags;
+
+    mags.resize(w);
+
+    for ( int i = 0; i < w; ++i)
+    {
+      double mag = 1.f;
+      auto freq = mapToLog10(double(i)/double(w), 20.0, 20000.0);
+
+      if(! hpFilter.isBypassed<0>())
+        mag *= hpFilter.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+      if(! hpFilter.isBypassed<1>())
+        mag *= hpFilter.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+      if(! hpFilter.isBypassed<2>())
+        mag *= hpFilter.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+      if(! hpFilter.isBypassed<3>())
+        mag *= hpFilter.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+
+      if(! monoChain.isBypassed<ChainPositions::LoPeak>())
+        mag *= peak1.coefficients->getMagnitudeForFrequency(freq, sampleRate);
+      if(! monoChain.isBypassed<ChainPositions::MidPeak>())
+        mag *= peak2.coefficients->getMagnitudeForFrequency(freq, sampleRate);
+      if(! monoChain.isBypassed<ChainPositions::HiPeak>())
+        mag *= peak3.coefficients->getMagnitudeForFrequency(freq, sampleRate);
+
+      if(! lpFilter.isBypassed<0>())
+        mag *= lpFilter.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+      if(! lpFilter.isBypassed<1>())
+        mag *= lpFilter.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+      if(! lpFilter.isBypassed<2>())
+        mag *= lpFilter.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+      if(! lpFilter.isBypassed<3>())
+        mag *= lpFilter.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+
+      mags[i] = Decibels::gainToDecibels(mag);
+    }
+
+    Path responseCurve;
+    const double outputMin = responseArea.getBottom();
+    const double outputMax = responseArea.getY();
+    auto map = [outputMin, outputMax](double input)
+    {
+      return jmap(input, -24.0, 24.0, outputMin, outputMax);
+    };
+
+    responseCurve.startNewSubPath(responseArea.getX(), map(mags.front()));
+
+    for (size_t i = 1; i < mags.size(); ++i)
+    {
+      responseCurve.lineTo(responseArea.getX()+i, map(mags[i]));
+    }
+
+    g.setColour(Colours::orange);
+    g.drawRoundedRectangle(responseArea.toFloat(), 4.f,1.f);
+
+    g.setColour(Colours::white);
+    g.strokePath(responseCurve, PathStrokeType(2.f));
+
 }
 
 void EQ5bAudioProcessorEditor::resized()

@@ -29,6 +29,19 @@ struct ChainSettings{
   PeakFilter loPeak, midPeak, hiPeak;
 };
 
+  using Filter = juce::dsp::IIR::Filter<float>;
+  using CutFreq = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
+  using MonoChain = juce::dsp::ProcessorChain<CutFreq, Filter, Filter, Filter, CutFreq>;
+  MonoChain leftChain, rightChain;
+
+  enum ChainPositions{
+  HiPass,
+  LoPeak,
+  MidPeak,
+  HiPeak,
+  LoPass
+  };
+  
 ChainSettings getChainSettings (juce::AudioProcessorValueTreeState& processorParameters);
 //==============================================================================
 /**
@@ -78,19 +91,6 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     juce::AudioProcessorValueTreeState processorParameters{*this, nullptr, "Parameters", createParameterLayout()};
 private:
-    using Filter = juce::dsp::IIR::Filter<float>;
-    using CutFreq = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
-    using MonoChain = juce::dsp::ProcessorChain<CutFreq, Filter, Filter, Filter, CutFreq>;
-    MonoChain leftChain, rightChain;
-
-    enum ChainPositions{
-    HiPass,
-    LoPeak,
-    MidPeak,
-    HiPeak,
-    LoPass
-    };
-
     using Coefficients = Filter::CoefficientsPtr;
     static void updateCoefficients (Coefficients& oldCoeff, const Coefficients& newCoeff);
 
