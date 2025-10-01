@@ -32,11 +32,23 @@ EQ5bAudioProcessorEditor::EQ5bAudioProcessorEditor (EQ5bAudioProcessor& p)
     {
       addAndMakeVisible(comp); 
     }
+
+    const auto& params = audioProcessor.getParameters();
+    for (auto param : params) 
+    {
+      param->addListener(this);
+    };
+    startTimerHz(60);
     setSize (1200, 400);
 }
 
 EQ5bAudioProcessorEditor::~EQ5bAudioProcessorEditor()
 {
+    const auto& params = audioProcessor.getParameters();
+    for (auto param : params) 
+    {
+      param->removeListener(this);
+    }
 }
 
 //==============================================================================
@@ -147,6 +159,33 @@ void EQ5bAudioProcessorEditor::resized()
             
     lpFreqSlider.setBounds(lpArea.removeFromTop(lpArea.getHeight()*0.5));
     lpSlopeSlider.setBounds(lpArea);
+}
+
+void EQ5bAudioProcessorEditor::parameterValueChanged(int parameterIndex, float newValue)
+{
+  parametersChanged.set(true);
+}
+
+void EQ5bAudioProcessorEditor::timerCallback()
+{
+  if(parametersChanged.compareAndSetBool(false,true))
+  {
+    auto chainSettings = getChainSettings(audioProcessor.processorParameters);
+    double sampleRate = audioProcessor.getSampleRate();
+
+    auto hpCoeff = makeHpFilter(chainSettings.hpFilter, sampleRate);
+    updateCutFiltersSlope(monoChain.get<ChainPositions::HiPass>(), hpCoeff, chainSettings.hpFilter.slope);
+    auto peak1Coeff = makePeakFilter(chainSettings.loPeak, sampleRate);
+    updateCoefficients(monoChain.get<ChainPositions::LoPeak>().coefficients, peak1Coeff);
+    auto peak2Coeff = makePeakFilter(chainSettings.midPeak, sampleRate);
+    updateCoefficients(monoChain.get<ChainPositions::MidPeak>().coefficients, peak2Coeff);
+    auto peak3Coeff = makePeakFilter(chainSettings.hiPeak, sampleRate);
+    updateCoefficients(monoChain.get<ChainPositions::HiPeak>().coefficients, peak3Coeff);
+    auto lpCoeff = makeLpFilter(chainSettings.lpFilter, sampleRate);
+    updateCutFiltersSlope(monoChain.get<ChainPositions::LoPass>(), lpCoeff, chainSettings.lpFilter.slope);
+
+    repaint();
+  }
 }
 
 std::vector<juce::Component*> EQ5bAudioProcessorEditor::getComps()

@@ -247,18 +247,22 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState &processorPara
     return settings;
 }
 
-void EQ5bAudioProcessor::updateCoefficients(Coefficients &oldCoeff,const Coefficients &newCoeff)
+void updateCoefficients(Coefficients &oldCoeff,const Coefficients &newCoeff)
 {
     *oldCoeff = *newCoeff;
 }
 
-void EQ5bAudioProcessor::updatePeakFilters(int position, const ChainSettings::PeakFilter &filter)
+Coefficients makePeakFilter(const ChainSettings::PeakFilter& filter, double sampleRate)
 {
-    auto peakFilterCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
-                                                                                filter.freq,
-                                                                                filter.q,
-                                                                                juce::Decibels::decibelsToGain(filter.gain));
+    return juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
+                                                            filter.freq,
+                                                            filter.q,
+                                                            juce::Decibels::decibelsToGain(filter.gain));
+}
 
+void EQ5bAudioProcessor::updatePeakFilters(int position, const ChainSettings::PeakFilter& filter)
+{   
+    auto peakFilterCoefficients = makePeakFilter(filter, getSampleRate());
     switch (position)
     {
     case ChainPositions::LoPeak:
@@ -287,18 +291,14 @@ void EQ5bAudioProcessor::updateCutFilters(int position, const ChainSettings::Cut
     {
         case ChainPositions::LoPass:
         {
-        auto loFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(filter.cutf,
-                                                                                                    getSampleRate(),
-                                                                                                    2*(filter.slope+1));
+        auto loFilterCoefficients = makeLpFilter(filter, getSampleRate());
         updateCutFiltersSlope(rightChain.get<ChainPositions::LoPass>(), loFilterCoefficients, filter.slope);
         updateCutFiltersSlope(leftChain.get<ChainPositions::LoPass>(), loFilterCoefficients, filter.slope);
         break;
         }
         case ChainPositions::HiPass:
         {
-        auto hiFilterCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(filter.cutf,
-                                                                                                    getSampleRate(),
-                                                                                                    2*(filter.slope+1));
+        auto hiFilterCoefficients = makeHpFilter(filter, getSampleRate());
         updateCutFiltersSlope(rightChain.get<ChainPositions::HiPass>(), hiFilterCoefficients, filter.slope);
         updateCutFiltersSlope(leftChain.get<ChainPositions::HiPass>(), hiFilterCoefficients, filter.slope);
         break;
