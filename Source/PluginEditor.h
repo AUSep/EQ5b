@@ -20,12 +20,27 @@ struct rotaryKnob : juce::Slider
   }
 };
 
+struct ResponseCurveComponent : juce::Component,
+juce::AudioProcessorParameter::Listener,
+juce::Timer
+{
+  ResponseCurveComponent(EQ5bAudioProcessor&);
+  ~ResponseCurveComponent();
+  void parameterValueChanged (int parameterIndex, float newValue) override;
+  void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override { }  
+  void timerCallback() override;
+  void paint(juce::Graphics& g) override;
+
+private:
+    EQ5bAudioProcessor& audioProcessor;
+    juce::Atomic<bool> parametersChanged {false};
+    MonoChain monoChain;
+};
+
 //==============================================================================
 /**
 */
-class EQ5bAudioProcessorEditor  : public juce::AudioProcessorEditor,
-juce::AudioProcessorParameter::Listener,
-juce::Timer
+class EQ5bAudioProcessorEditor  : public juce::AudioProcessorEditor
 {
 public:
     EQ5bAudioProcessorEditor (EQ5bAudioProcessor&);
@@ -34,16 +49,13 @@ public:
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
-    void parameterValueChanged (int parameterIndex, float newValue) override;
-    void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override { }  
-    void timerCallback() override;
 
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
+   
     EQ5bAudioProcessor& audioProcessor;
 
-    juce::Atomic<bool> parametersChanged {false};
     rotaryKnob hpFreqSlider,
     hpSlopeSlider,
     p1GainSlider,
@@ -57,6 +69,8 @@ private:
     p3QSlider,
     lpFreqSlider,
     lpSlopeSlider;
+
+    ResponseCurveComponent responseCurveComponent;
 
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
 
@@ -75,8 +89,6 @@ private:
     lpSlopeSliderAttachment;
 
     std::vector<juce::Component*> getComps();
-
-    MonoChain monoChain;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ5bAudioProcessorEditor)
 };

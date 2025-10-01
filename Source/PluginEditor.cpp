@@ -9,9 +9,132 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+ResponseCurveComponent::ResponseCurveComponent(EQ5bAudioProcessor& p) : audioProcessor(p)
+{
+  const auto& params = audioProcessor.getParameters();
+  for (auto param : params) 
+  {
+    param->addListener(this);
+  };
+  startTimerHz(60);
+}
+
+ResponseCurveComponent::~ResponseCurveComponent()
+{
+    const auto& params = audioProcessor.getParameters();
+    for (auto param : params) 
+    {
+      param->removeListener(this);
+    }
+}
+
+void ResponseCurveComponent::parameterValueChanged(int parameterIndex, float newValue)
+{
+  parametersChanged.set(true);
+}
+
+void ResponseCurveComponent::timerCallback()
+{
+  if(parametersChanged.compareAndSetBool(false,true))
+  {
+    auto chainSettings = getChainSettings(audioProcessor.processorParameters);
+    double sampleRate = audioProcessor.getSampleRate();
+
+    auto hpCoeff = makeHpFilter(chainSettings.hpFilter, sampleRate);
+    updateCutFiltersSlope(monoChain.get<ChainPositions::HiPass>(), hpCoeff, chainSettings.hpFilter.slope);
+    auto peak1Coeff = makePeakFilter(chainSettings.loPeak, sampleRate);
+    updateCoefficients(monoChain.get<ChainPositions::LoPeak>().coefficients, peak1Coeff);
+    auto peak2Coeff = makePeakFilter(chainSettings.midPeak, sampleRate);
+    updateCoefficients(monoChain.get<ChainPositions::MidPeak>().coefficients, peak2Coeff);
+    auto peak3Coeff = makePeakFilter(chainSettings.hiPeak, sampleRate);
+    updateCoefficients(monoChain.get<ChainPositions::HiPeak>().coefficients, peak3Coeff);
+    auto lpCoeff = makeLpFilter(chainSettings.lpFilter, sampleRate);
+    updateCutFiltersSlope(monoChain.get<ChainPositions::LoPass>(), lpCoeff, chainSettings.lpFilter.slope);
+
+    repaint();
+  }
+}
+void ResponseCurveComponent::paint (juce::Graphics& g)
+{
+  using namespace juce;
+  // (Our component is opaque, so we must completely fill the background with a solid colour)
+  g.fillAll (Colours::black);
+
+  auto responseArea = getLocalBounds();
+  auto w = responseArea.getWidth();
+
+  auto& hpFilter = monoChain.get<ChainPositions::HiPass>();
+  auto& peak1 = monoChain.get<ChainPositions::LoPeak>();
+  auto& peak2 = monoChain.get<ChainPositions::MidPeak>();
+  auto& peak3 = monoChain.get<ChainPositions::HiPeak>();
+  auto& lpFilter = monoChain.get<ChainPositions::LoPass>();
+
+  auto sampleRate = audioProcessor.getSampleRate();
+
+  std::vector<double> mags;
+
+  mags.resize(w);
+
+  for ( int i = 0; i < w; ++i)
+  {
+    double mag = 1.f;
+    auto freq = mapToLog10(double(i)/double(w), 20.0, 20000.0);
+
+    if(! hpFilter.isBypassed<0>())
+      mag *= hpFilter.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    if(! hpFilter.isBypassed<1>())
+      mag *= hpFilter.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    if(! hpFilter.isBypassed<2>())
+      mag *= hpFilter.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    if(! hpFilter.isBypassed<3>())
+      mag *= hpFilter.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+
+    if(! monoChain.isBypassed<ChainPositions::LoPeak>())
+      mag *= peak1.coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    if(! monoChain.isBypassed<ChainPositions::MidPeak>())
+      mag *= peak2.coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    if(! monoChain.isBypassed<ChainPositions::HiPeak>())
+      mag *= peak3.coefficients->getMagnitudeForFrequency(freq, sampleRate);
+
+    if(! lpFilter.isBypassed<0>())
+      mag *= lpFilter.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    if(! lpFilter.isBypassed<1>())
+      mag *= lpFilter.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    if(! lpFilter.isBypassed<2>())
+      mag *= lpFilter.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    if(! lpFilter.isBypassed<3>())
+      mag *= lpFilter.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+
+    mags[i] = Decibels::gainToDecibels(mag);
+  }
+
+  Path responseCurve;
+  const double outputMin = responseArea.getBottom();
+  const double outputMax = responseArea.getY();
+  auto map = [outputMin, outputMax](double input)
+  {
+    return jmap(input, -24.0, 24.0, outputMin, outputMax);
+  };
+
+  responseCurve.startNewSubPath(responseArea.getX(), map(mags.front()));
+
+  for (size_t i = 1; i < mags.size(); ++i)
+  {
+    responseCurve.lineTo(responseArea.getX()+i, map(mags[i]));
+  }
+
+  g.setColour(Colours::orange);
+  g.drawRoundedRectangle(responseArea.toFloat(), 4.f,1.f);
+
+  g.setColour(Colours::white);
+  g.strokePath(responseCurve, PathStrokeType(2.f));
+
+}
+
 //==============================================================================
 EQ5bAudioProcessorEditor::EQ5bAudioProcessorEditor (EQ5bAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p),
+    responseCurveComponent(audioProcessor),
     hpFreqSliderAttachment(audioProcessor.processorParameters,"hpFreq", hpFreqSlider),
     hpSlopeSliderAttachment(audioProcessor.processorParameters,"hpSlope", hpSlopeSlider),
     lpFreqSliderAttachment(audioProcessor.processorParameters,"lpFreq",lpFreqSlider),
@@ -31,103 +154,17 @@ EQ5bAudioProcessorEditor::EQ5bAudioProcessorEditor (EQ5bAudioProcessor& p)
     for (auto* comp : getComps() )
     {
       addAndMakeVisible(comp); 
-    }
-
-    const auto& params = audioProcessor.getParameters();
-    for (auto param : params) 
-    {
-      param->addListener(this);
-    };
-    startTimerHz(60);
+    } 
     setSize (1200, 400);
 }
 
 EQ5bAudioProcessorEditor::~EQ5bAudioProcessorEditor()
 {
-    const auto& params = audioProcessor.getParameters();
-    for (auto param : params) 
-    {
-      param->removeListener(this);
-    }
 }
 
 //==============================================================================
 void EQ5bAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    using namespace juce;
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll (Colours::black);
-
-    auto bounds = getLocalBounds();
-    auto responseArea = bounds.removeFromTop(bounds.getHeight()*0.33);
-    auto w = responseArea.getWidth();
-
-    auto& hpFilter = monoChain.get<ChainPositions::HiPass>();
-    auto& peak1 = monoChain.get<ChainPositions::LoPeak>();
-    auto& peak2 = monoChain.get<ChainPositions::MidPeak>();
-    auto& peak3 = monoChain.get<ChainPositions::HiPeak>();
-    auto& lpFilter = monoChain.get<ChainPositions::LoPass>();
-
-    auto sampleRate = audioProcessor.getSampleRate();
-
-    std::vector<double> mags;
-
-    mags.resize(w);
-
-    for ( int i = 0; i < w; ++i)
-    {
-      double mag = 1.f;
-      auto freq = mapToLog10(double(i)/double(w), 20.0, 20000.0);
-
-      if(! hpFilter.isBypassed<0>())
-        mag *= hpFilter.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-      if(! hpFilter.isBypassed<1>())
-        mag *= hpFilter.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-      if(! hpFilter.isBypassed<2>())
-        mag *= hpFilter.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-      if(! hpFilter.isBypassed<3>())
-        mag *= hpFilter.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-
-      if(! monoChain.isBypassed<ChainPositions::LoPeak>())
-        mag *= peak1.coefficients->getMagnitudeForFrequency(freq, sampleRate);
-      if(! monoChain.isBypassed<ChainPositions::MidPeak>())
-        mag *= peak2.coefficients->getMagnitudeForFrequency(freq, sampleRate);
-      if(! monoChain.isBypassed<ChainPositions::HiPeak>())
-        mag *= peak3.coefficients->getMagnitudeForFrequency(freq, sampleRate);
-
-      if(! lpFilter.isBypassed<0>())
-        mag *= lpFilter.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-      if(! lpFilter.isBypassed<1>())
-        mag *= lpFilter.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-      if(! lpFilter.isBypassed<2>())
-        mag *= lpFilter.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-      if(! lpFilter.isBypassed<3>())
-        mag *= lpFilter.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-
-      mags[i] = Decibels::gainToDecibels(mag);
-    }
-
-    Path responseCurve;
-    const double outputMin = responseArea.getBottom();
-    const double outputMax = responseArea.getY();
-    auto map = [outputMin, outputMax](double input)
-    {
-      return jmap(input, -24.0, 24.0, outputMin, outputMax);
-    };
-
-    responseCurve.startNewSubPath(responseArea.getX(), map(mags.front()));
-
-    for (size_t i = 1; i < mags.size(); ++i)
-    {
-      responseCurve.lineTo(responseArea.getX()+i, map(mags[i]));
-    }
-
-    g.setColour(Colours::orange);
-    g.drawRoundedRectangle(responseArea.toFloat(), 4.f,1.f);
-
-    g.setColour(Colours::white);
-    g.strokePath(responseCurve, PathStrokeType(2.f));
-
 }
 
 void EQ5bAudioProcessorEditor::resized()
@@ -136,6 +173,8 @@ void EQ5bAudioProcessorEditor::resized()
     // subcomponents in your editor..
     auto bounds = getLocalBounds();
     auto responseArea = bounds.removeFromTop(bounds.getHeight()*0.33);
+
+    responseCurveComponent.setBounds(responseArea);
 
     auto hpArea = bounds.removeFromLeft(bounds.getWidth()*0.2);
     auto lpArea = bounds.removeFromRight(bounds.getWidth()*0.25);
@@ -161,33 +200,6 @@ void EQ5bAudioProcessorEditor::resized()
     lpSlopeSlider.setBounds(lpArea);
 }
 
-void EQ5bAudioProcessorEditor::parameterValueChanged(int parameterIndex, float newValue)
-{
-  parametersChanged.set(true);
-}
-
-void EQ5bAudioProcessorEditor::timerCallback()
-{
-  if(parametersChanged.compareAndSetBool(false,true))
-  {
-    auto chainSettings = getChainSettings(audioProcessor.processorParameters);
-    double sampleRate = audioProcessor.getSampleRate();
-
-    auto hpCoeff = makeHpFilter(chainSettings.hpFilter, sampleRate);
-    updateCutFiltersSlope(monoChain.get<ChainPositions::HiPass>(), hpCoeff, chainSettings.hpFilter.slope);
-    auto peak1Coeff = makePeakFilter(chainSettings.loPeak, sampleRate);
-    updateCoefficients(monoChain.get<ChainPositions::LoPeak>().coefficients, peak1Coeff);
-    auto peak2Coeff = makePeakFilter(chainSettings.midPeak, sampleRate);
-    updateCoefficients(monoChain.get<ChainPositions::MidPeak>().coefficients, peak2Coeff);
-    auto peak3Coeff = makePeakFilter(chainSettings.hiPeak, sampleRate);
-    updateCoefficients(monoChain.get<ChainPositions::HiPeak>().coefficients, peak3Coeff);
-    auto lpCoeff = makeLpFilter(chainSettings.lpFilter, sampleRate);
-    updateCutFiltersSlope(monoChain.get<ChainPositions::LoPass>(), lpCoeff, chainSettings.lpFilter.slope);
-
-    repaint();
-  }
-}
-
 std::vector<juce::Component*> EQ5bAudioProcessorEditor::getComps()
 {
   return
@@ -204,6 +216,7 @@ std::vector<juce::Component*> EQ5bAudioProcessorEditor::getComps()
     &p3FreqSlider,
     &p3QSlider,
     &lpFreqSlider,
-    &lpSlopeSlider
+    &lpSlopeSlider, 
+    &responseCurveComponent
   };
 }
